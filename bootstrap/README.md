@@ -1,0 +1,1 @@
+Scripts to automate the setup of a new project from the template.

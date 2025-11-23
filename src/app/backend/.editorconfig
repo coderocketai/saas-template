@@ -1,0 +1,13 @@
+root = true
+
+# All files
+[*]
+indent_style = space
+
+# Xml files
+[*.xml]
+indent_size = 2
+
+[*.cs]
+# Enforce file-scoped namespaces as an error
+csharp_style_namespace_declarations = file_scoped:error

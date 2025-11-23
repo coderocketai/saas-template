@@ -1,0 +1,85 @@
+﻿version: "3.9"
+services:
+  mariadb:
+    image: mariadb:11.8.3
+    container_name: coderocket_mariadb
+    environment:
+      # Change these passwords for your environment or use Docker secrets for production
+      MYSQL_ROOT_PASSWORD: "%E!3UqqdjT23WW"
+      MYSQL_DATABASE: coderocket
+      MYSQL_USER: coderocket_user
+      MYSQL_PASSWORD: coderocket_pass
+      # Ensure UTF-8 encoding
+      MYSQL_CHARSET: utf8mb4
+      MYSQL_COLLATION: utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      # Persist database files outside container in a named volume
+      - mariadb_data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - coderocket_network
+
+  coderocket.db-migrator:
+    image: coderocket.db-migrator
+    container_name: coderocket_db_migrator
+    build:
+      context: .
+      dockerfile: CodeRocket.DbTools/Dockerfile
+    environment:
+      # Connection string for migrations
+      ConnectionStrings__DefaultConnection: "Server=mariadb;Port=3306;Database=coderocket;User=coderocket_user;Password=coderocket_pass;AllowUserVariables=True;UseAffectedRows=False"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    command: ["setup-db-latest"]
+    restart: "no"  # Runs once and stops
+    networks:
+      - coderocket_network
+
+  coderocket.api:
+    image: coderocket.api
+    container_name: coderocket_api
+    build:
+      context: .
+      dockerfile: CodeRocket.Api/Dockerfile
+    ports:
+      - "8000:8080"
+      - "8001:8081"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      # Connection string pointing to the mariadb service
+      ConnectionStrings__DbConnection: "Server=mariadb;Port=3306;Database=coderocket;User=coderocket_user;Password=coderocket_pass;AllowUserVariables=True;UseAffectedRows=False"
+      # Logging configuration
+      Logging__LogLevel__Default: Information
+      Logging__LogLevel__Microsoft.AspNetCore: Warning
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      coderocket.db-migrator:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - coderocket_network
+
+volumes:
+  mariadb_data:
+    driver: local
+
+networks:
+  coderocket_network:
+    driver: bridge
+
