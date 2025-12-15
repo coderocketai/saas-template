@@ -9,7 +9,7 @@
 - **Version-based migrations**: Organized by folders with semantic versioning
 - **SQL file execution**: Direct execution of SQL scripts with transaction support
 - **Migration tracking**: Maintains version history in `db_versions` table
-- **MariaDB support**: Optimized for MariaDB 11.8+ with VECTOR support
+- **PostgreSQL support**: Optimized for PostgreSQL 18.1+
 - **Environment configuration**: Flexible connection string management
 - **Rollback protection**: Prevents accidental re-execution of completed migrations
 
@@ -113,10 +113,10 @@ The system maintains a `db_versions` table:
 
 ```sql
 CREATE TABLE db_versions (
-    Id INT AUTO_INCREMENT PRIMARY KEY,
-    Version VARCHAR(50) NOT NULL UNIQUE,
-    ExecutedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    Description VARCHAR(500) NULL
+    id SERIAL PRIMARY KEY,
+    version VARCHAR(50) NOT NULL UNIQUE,
+    executed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    description VARCHAR(500) NULL
 );
 ```
 
@@ -152,14 +152,14 @@ dotnet run --project CodeRocket.DbTools.csproj
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "server=localhost;port=3306;user=root;password=root;database=coderocket_dev"
+    "DefaultConnection": "Host=localhost;Port=5432;Database=coderocket_dev;Username=postgres;Password=postgres"
   }
 }
 ```
 
 **Environment Variables** (alternative):
 ```bash
-export ConnectionStrings__DefaultConnection="server=mariadb;port=3306;user=app_user;password=Password123!;database=coderocket"
+export ConnectionStrings__DefaultConnection="Host=postgres;Port=5432;Database=coderocket;Username=app_user;Password=Password123!"
 ```
 
 ### Sample Output
@@ -201,12 +201,12 @@ mkdir Migrations/1.2.0
 ```sql
 -- Migrations/1.2.0/1_create_documents_table.sql
 CREATE TABLE documents (
-    Id INT AUTO_INCREMENT PRIMARY KEY,
-    Title VARCHAR(255) NOT NULL,
-    Content TEXT,
-    UserId INT NOT NULL,
-    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (UserId) REFERENCES users(Id)
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT,
+    user_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );
 ```
 
@@ -230,29 +230,29 @@ dotnet run --project CodeRocket.DbTools
 #### **users** (created by Initial migration)
 ```sql
 CREATE TABLE users (
-    Id INT AUTO_INCREMENT PRIMARY KEY,
-    Role INT NOT NULL DEFAULT 0,           -- UserRole enum
-    Email VARCHAR(255) NULL UNIQUE,
-    TelegramId VARCHAR(50) NULL UNIQUE,
-    DiscordId VARCHAR(50) NULL UNIQUE,
-    FirstName VARCHAR(100) NULL,
-    LastName VARCHAR(100) NULL,
-    DisplayName VARCHAR(100) NULL,
-    CreatedBy VARCHAR(100) NULL,
-    UpdatedBy VARCHAR(100) NULL,
-    CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    IsDeleted BOOLEAN DEFAULT FALSE
+    id SERIAL PRIMARY KEY,
+    role INT NOT NULL DEFAULT 0,           -- UserRole enum
+    email VARCHAR(255) NULL UNIQUE,
+    telegram_id VARCHAR(50) NULL UNIQUE,
+    discord_id VARCHAR(50) NULL UNIQUE,
+    first_name VARCHAR(100) NULL,
+    last_name VARCHAR(100) NULL,
+    display_name VARCHAR(100) NULL,
+    created_by VARCHAR(100) NULL,
+    updated_by VARCHAR(100) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_deleted BOOLEAN NOT NULL DEFAULT FALSE
 );
 ```
 
 #### **db_versions** (auto-created by DbTools)
 ```sql
 CREATE TABLE db_versions (
-    Id INT AUTO_INCREMENT PRIMARY KEY,
-    Version VARCHAR(50) NOT NULL UNIQUE,
-    ExecutedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-    Description VARCHAR(500) NULL
+    id SERIAL PRIMARY KEY,
+    version VARCHAR(50) NOT NULL UNIQUE,
+    executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    description VARCHAR(500) NULL
 );
 ```
 
@@ -262,7 +262,7 @@ CREATE TABLE db_versions (
 
 - **.NET 9.0**: Console application framework
 - **ADO.NET**: Pure database access (no ORM overhead)
-- **MySqlConnector**: MariaDB/MySQL driver
+- **Npgsql**: PostgreSQL driver for .NET
 - **Configuration**: Microsoft.Extensions.Configuration
 - **File System**: Migration discovery and SQL file reading
 
@@ -310,7 +310,7 @@ CREATE TABLE db_versions (
 ```
 - Verify database credentials
 - Ensure user has CREATE/ALTER/INSERT permissions
-- Check MariaDB/MySQL service is running
+- Check PostgreSQL service is running
 
 **3. Migration Already Executed**
 ```
@@ -323,10 +323,10 @@ CREATE TABLE db_versions (
 
 ```bash
 # Check current database state
-mysql -u root -p -e "SELECT * FROM coderocket_dev.db_versions;"
+psql -U postgres -d coderocket_dev -c "SELECT * FROM db_versions;"
 
 # Reset migrations (⚠️ DESTRUCTIVE - dev only)
-mysql -u root -p -e "DROP DATABASE IF EXISTS coderocket_dev; CREATE DATABASE coderocket_dev;"
+psql -U postgres -c "DROP DATABASE IF EXISTS coderocket_dev; CREATE DATABASE coderocket_dev;"
 
 # View migration status
 dotnet run --project CodeRocket.DbTools -- --status
@@ -341,18 +341,18 @@ dotnet run --project CodeRocket.DbTools -- --status
 **docker-compose.yaml**:
 ```yaml
 services:
-  mariadb:
-    image: mariadb:11.8
+  postgres:
+    image: postgres:18.1
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: coderocket_dev
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: coderocket_dev
     
   db-migrator:
     build: ./CodeRocket.DbTools
     depends_on:
-      - mariadb
+      - postgres
     environment:
-      - ConnectionStrings__DefaultConnection=server=mariadb;port=3306;user=root;password=root;database=coderocket_dev
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=coderocket_dev;Username=postgres;Password=postgres
 ```
 
 ### CI/CD Integration

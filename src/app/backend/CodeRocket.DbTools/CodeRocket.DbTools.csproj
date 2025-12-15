@@ -13,13 +13,17 @@
       <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="9.0.10" />
       <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.10" />
       <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.10" />
-      <PackageReference Include="MySqlConnector" Version="2.4.0" />
+      <PackageReference Include="Npgsql" Version="10.0.0" />
     </ItemGroup>
 
     <ItemGroup>
       <None Update="Migrations\Initial\1_create_users_table.sql">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\CodeRocket.Common\CodeRocket.Common.csproj" />
     </ItemGroup>
 
 </Project>
