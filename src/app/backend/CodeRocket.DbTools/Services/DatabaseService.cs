@@ -1,5 +1,5 @@
-﻿using MySqlConnector;
-using System.Data;
+﻿﻿using CodeRocket.Common.Helpers;
+ using Npgsql;
 using CodeRocket.DbTools.Models;
 
 namespace CodeRocket.DbTools.Services;
@@ -23,16 +23,27 @@ public class DatabaseService
     {
         try
         {
-            var builder = new MySqlConnectionStringBuilder(_connectionString);
+            var builder = new NpgsqlConnectionStringBuilder(_connectionString);
             var databaseName = builder.Database;
-            builder.Database = "";
+            builder.Database = "postgres"; // Connect to default database
 
-            using var connection = new MySqlConnection(builder.ConnectionString);
+            using var connection = new NpgsqlConnection(builder.ConnectionString);
             await connection.OpenAsync();
 
-            var createDbCommand = connection.CreateCommand();
-            createDbCommand.CommandText = $"CREATE DATABASE IF NOT EXISTS `{databaseName}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
-            await createDbCommand.ExecuteNonQueryAsync();
+            // Check if database exists
+            var checkDbCommand = connection.CreateCommand();
+            checkDbCommand.CommandText = "SELECT 1 FROM pg_database WHERE datname = @databaseName";
+            checkDbCommand.Parameters.AddWithValue("@databaseName", databaseName ?? "");
+
+            var exists = await checkDbCommand.ExecuteScalarAsync();
+            
+            if (exists == null)
+            {
+                // Create database
+                var createDbCommand = connection.CreateCommand();
+                createDbCommand.CommandText = $"CREATE DATABASE \"{databaseName}\" ENCODING 'UTF8'";
+                await createDbCommand.ExecuteNonQueryAsync();
+            }
 
             return true;
         }
@@ -50,17 +61,17 @@ public class DatabaseService
     {
         try
         {
-            using var connection = new MySqlConnection(_connectionString);
+            using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync();
 
             var createTableCommand = connection.CreateCommand();
             createTableCommand.CommandText = @"
                 CREATE TABLE IF NOT EXISTS db_versions (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    id SERIAL PRIMARY KEY,
                     version VARCHAR(50) NOT NULL,
-                    executed_at DATETIME NOT NULL,
+                    executed_at TIMESTAMP NOT NULL,
                     description TEXT
-                ) ENGINE=InnoDB CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
+                )";
 
             await createTableCommand.ExecuteNonQueryAsync();
             return true;
@@ -79,7 +90,7 @@ public class DatabaseService
     {
         try
         {
-            using var connection = new MySqlConnection(_connectionString);
+            using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync();
 
             var command = connection.CreateCommand();
@@ -104,7 +115,7 @@ public class DatabaseService
 
         try
         {
-            using var connection = new MySqlConnection(_connectionString);
+            using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync();
 
             var command = connection.CreateCommand();
@@ -115,10 +126,10 @@ public class DatabaseService
             {
                 versions.Add(new DatabaseVersion
                 {
-                    Id = reader.GetInt32("id"),
-                    Version = reader.GetString("version"),
-                    ExecutedAt = reader.GetDateTime("executed_at"),
-                    Description = reader.IsDBNull("description") ? null : reader.GetString("description")
+                    Id = reader.GetInt32(0),
+                    Version = reader.GetString(1),
+                    ExecutedAt = reader.GetDateTime(2),
+                    Description = reader.IsDBNull(3) ? null : reader.GetString(3)
                 });
             }
         }
@@ -137,14 +148,14 @@ public class DatabaseService
     {
         try
         {
-            using var connection = new MySqlConnection(_connectionString);
+            using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync();
 
             var command = connection.CreateCommand();
             command.CommandText = "INSERT INTO db_versions (version, executed_at, description) VALUES (@version, @executed_at, @description)";
             command.Parameters.AddWithValue("@version", version);
             command.Parameters.AddWithValue("@executed_at", DateTime.UtcNow);
-            command.Parameters.AddWithValue("@description", description ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@description", (object?)description ?? DBNull.Value);
 
             await command.ExecuteNonQueryAsync();
             return true;
@@ -157,17 +168,17 @@ public class DatabaseService
     }
 
     /// <summary>
-    /// Execute SQL script
+    /// Execute SQL script with proper handling of PostgreSQL syntax including functions/triggers
     /// </summary>
     public async Task<bool> ExecuteSqlScriptAsync(string sqlContent)
     {
         try
         {
-            using var connection = new MySqlConnection(_connectionString);
+            using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync();
 
-            // Split by semicolon and execute each statement separately
-            var statements = sqlContent.Split(';', StringSplitOptions.RemoveEmptyEntries);
+            // Parse SQL statements properly to handle PostgreSQL functions/triggers with semicolons
+            var statements = PgSqlHelper.ParseSqlStatements(sqlContent);
             
             foreach (var statement in statements)
             {
@@ -196,7 +207,7 @@ public class DatabaseService
     {
         try
         {
-            using var connection = new MySqlConnection(_connectionString);
+            using var connection = new NpgsqlConnection(_connectionString);
             await connection.OpenAsync();
             return true;
         }

@@ -1,24 +1,25 @@
 using Docker.DotNet;
 using Docker.DotNet.Models;
-using MySqlConnector;
+using Npgsql;
 using System.Net;
 
 namespace CodeRocket.DbTools.IntegrationTests.Infrastructure;
 
 /// <summary>
-/// Manages Docker container with MariaDB for integration tests
+/// Manages Docker container with PostgreSQL for integration tests
 /// </summary>
-public class DockerMariaDbContainer : IDisposable
+public class DockerPostgresContainer : IDisposable
 {
     /// <summary>
-    /// MariaDb Docker Image 
+    /// PostgreSQL Docker Image 
     /// </summary>
     /// <remarks>
-    /// Run command 'docker pull mariadb:11.8.3' before tests execution.
+    /// Run command 'docker pull postgres:18.1' before tests execution.
     /// </remarks> 
-    private readonly string _mariaDbImageName = "mariadb:11.8.3";
-    private readonly string _rootPassword = "test_password_123";
+    private readonly string _postgresImageName = "postgres:18.1";
+    private readonly string _password = "test_password_123";
     private readonly string _databaseName = "coderocket_test_db";
+    private readonly string _username = "postgres";
 
     private readonly DockerClient _dockerClient;
     private string? _containerId;
@@ -26,17 +27,17 @@ public class DockerMariaDbContainer : IDisposable
     private readonly int _port;
     private bool _disposed;
 
-    public string ConnectionString => $"Server=localhost;Port={_port};Database={_databaseName};User=root;Password={_rootPassword};";
+    public string ConnectionString => $"Host=localhost;Port={_port};Database={_databaseName};Username={_username};Password={_password};";
 
-    public DockerMariaDbContainer()
+    public DockerPostgresContainer()
     {
         _dockerClient = new DockerClientConfiguration().CreateClient();
-        _containerName = $"mariadb_test_{Guid.NewGuid():N}";
+        _containerName = $"postgres_test_{Guid.NewGuid():N}";
         _port = GetAvailablePort();
     }
 
     /// <summary>
-    /// Starts MariaDB container
+    /// Starts PostgreSQL container
     /// </summary>
     public async Task StartAsync()
     {
@@ -46,23 +47,22 @@ public class DockerMariaDbContainer : IDisposable
             var createResponse = await _dockerClient.Containers.CreateContainerAsync(new CreateContainerParameters
             {
                 Name = _containerName,
-                Image = _mariaDbImageName,
+                Image = _postgresImageName,
                 Env = new[]
                 {
-                    $"MYSQL_ROOT_PASSWORD={_rootPassword}",
-                    $"MYSQL_DATABASE={_databaseName}",
-                    "MYSQL_CHARSET=utf8mb4",
-                    "MYSQL_COLLATION=utf8mb4_unicode_ci"
+                    $"POSTGRES_PASSWORD={_password}",
+                    $"POSTGRES_DB={_databaseName}",
+                    $"POSTGRES_USER={_username}"
                 },
                 ExposedPorts = new Dictionary<string, EmptyStruct>
                 {
-                    ["3306/tcp"] = new EmptyStruct()
+                    ["5432/tcp"] = new EmptyStruct()
                 },
                 HostConfig = new HostConfig
                 {
                     PortBindings = new Dictionary<string, IList<PortBinding>>
                     {
-                        ["3306/tcp"] = new List<PortBinding>
+                        ["5432/tcp"] = new List<PortBinding>
                         {
                             new() { HostPort = _port.ToString() }
                         }
@@ -81,7 +81,7 @@ public class DockerMariaDbContainer : IDisposable
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException($"Failed to start MariaDB container: {ex.Message}", ex);
+            throw new InvalidOperationException($"Failed to start PostgreSQL container: {ex.Message}", ex);
         }
     }
 
@@ -145,15 +145,15 @@ public class DockerMariaDbContainer : IDisposable
         {
             try
             {
-                using var connection = new MySqlConnection(ConnectionString);
+                using var connection = new NpgsqlConnection(ConnectionString);
                 await connection.OpenAsync();
-                Console.WriteLine($"MariaDB container is ready on port {_port}");
+                Console.WriteLine($"PostgreSQL container is ready on port {_port}");
                 return;
             }
             catch (Exception)
             {
                 if (i == maxAttempts - 1)
-                    throw new TimeoutException("MariaDB container is not ready within the specified time");
+                    throw new TimeoutException("PostgreSQL container is not ready within the specified time");
 
                 await Task.Delay(delay);
             }
@@ -161,7 +161,7 @@ public class DockerMariaDbContainer : IDisposable
     }
 
     /// <summary>
-    /// Finds available port for MariaDB
+    /// Finds available port for PostgreSQL
     /// </summary>
     private static int GetAvailablePort()
     {

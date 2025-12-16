@@ -1,6 +1,6 @@
 using CodeRocket.DbTools.IntegrationTests.Infrastructure;
 using CodeRocket.DbTools.Services;
-using MySqlConnector;
+using Npgsql;
 
 namespace CodeRocket.DbTools.IntegrationTests;
 
@@ -10,7 +10,7 @@ namespace CodeRocket.DbTools.IntegrationTests;
 [TestClass]
 public class DbToolsAdvancedIntegrationTests
 {
-    private DockerMariaDbContainer? _mariaDbContainer;
+    private DockerPostgresContainer? _postgresContainer;
     private DatabaseService? _databaseService;
     private MigrationService? _migrationService;
     private string? _connectionString;
@@ -18,10 +18,10 @@ public class DbToolsAdvancedIntegrationTests
     [TestInitialize]
     public async Task TestInitialize()
     {
-        _mariaDbContainer = new DockerMariaDbContainer();
-        await _mariaDbContainer.StartAsync();
+        _postgresContainer = new DockerPostgresContainer();
+        await _postgresContainer.StartAsync();
         
-        _connectionString = _mariaDbContainer.ConnectionString;
+        _connectionString = _postgresContainer.ConnectionString;
         _databaseService = new DatabaseService(_connectionString);
         
         var migrationsPath = Path.Combine(
@@ -34,11 +34,11 @@ public class DbToolsAdvancedIntegrationTests
     [TestCleanup]
     public async Task TestCleanup()
     {
-        if (_mariaDbContainer != null)
+        if (_postgresContainer != null)
         {
             try
             {
-                await _mariaDbContainer.StopAsync();
+                await _postgresContainer.StopAsync();
             }
             catch (Exception ex)
             {
@@ -46,8 +46,8 @@ public class DbToolsAdvancedIntegrationTests
             }
             finally
             {
-                _mariaDbContainer.Dispose();
-                _mariaDbContainer = null;
+                _postgresContainer.Dispose();
+                _postgresContainer = null;
             }
         }
     }
@@ -60,15 +60,15 @@ public class DbToolsAdvancedIntegrationTests
         await _migrationService!.SetupDatabaseAsync();
 
         // Assert - check users table structure
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
 
         // Check that users table exists
         var tableExistsCommand = connection.CreateCommand();
         tableExistsCommand.CommandText = @"
             SELECT COUNT(*) 
-            FROM INFORMATION_SCHEMA.TABLES 
-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'";
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_name = 'users'";
         var tableExists = Convert.ToInt32(await tableExistsCommand.ExecuteScalarAsync());
         
         Assert.AreEqual(1, tableExists, "Users table should be created");
@@ -76,27 +76,27 @@ public class DbToolsAdvancedIntegrationTests
         // Check main columns
         var columnsCommand = connection.CreateCommand();
         columnsCommand.CommandText = @"
-            SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
-            FROM INFORMATION_SCHEMA.COLUMNS 
-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'
-            ORDER BY ORDINAL_POSITION";
+            SELECT column_name, data_type, is_nullable
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = 'users'
+            ORDER BY ordinal_position";
 
         var columns = new List<(string Name, string Type, string Nullable)>();
         using var reader = await columnsCommand.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
             columns.Add((
-                reader.GetString("COLUMN_NAME"),
-                reader.GetString("DATA_TYPE"),
-                reader.GetString("IS_NULLABLE")
+                reader.GetString(0),
+                reader.GetString(1),
+                reader.GetString(2)
             ));
         }
 
-        // Check presence of key columns
-        Assert.IsTrue(columns.Any(c => c.Name == "Id" && c.Type == "int"), "Id column should exist");
-        Assert.IsTrue(columns.Any(c => c.Name == "Email" && c.Type == "varchar"), "Email column should exist");
-        Assert.IsTrue(columns.Any(c => c.Name == "Role" && c.Type == "int"), "Role column should exist");
-        Assert.IsTrue(columns.Any(c => c.Name == "CreatedAt" && c.Type == "datetime"), "CreatedAt column should exist");
+        // Check presence of key columns (PostgreSQL uses lowercase names by default)
+        Assert.IsTrue(columns.Any(c => c.Name == "id" && c.Type == "integer"), "id column should exist");
+        Assert.IsTrue(columns.Any(c => c.Name == "email" && c.Type == "character varying"), "email column should exist");
+        Assert.IsTrue(columns.Any(c => c.Name == "role" && c.Type == "integer"), "role column should exist");
+        Assert.IsTrue(columns.Any(c => c.Name == "created_at" && c.Type.Contains("timestamp")), "created_at column should exist");
 
         Console.WriteLine("✅ Test 8: Users table created with correct structure");
     }
@@ -109,23 +109,23 @@ public class DbToolsAdvancedIntegrationTests
         await _migrationService!.SetupDatabaseAsync();
 
         // Assert - check that test data is inserted
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
 
         var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM users WHERE IsDeleted = FALSE";
+        command.CommandText = "SELECT COUNT(*) FROM users WHERE is_deleted = FALSE";
         var userCount = Convert.ToInt32(await command.ExecuteScalarAsync());
 
         Assert.IsTrue(userCount >= 2, "There should be at least 2 test users");
 
         // Check administrator
         var adminCommand = connection.CreateCommand();
-        adminCommand.CommandText = "SELECT Email, Role FROM users WHERE Email = 'admin@coderocket.com'";
+        adminCommand.CommandText = "SELECT email, role FROM users WHERE email = 'admin@coderocket.com'";
         using var adminReader = await adminCommand.ExecuteReaderAsync();
         
         Assert.IsTrue(await adminReader.ReadAsync(), "Administrator should exist");
-        Assert.AreEqual("admin@coderocket.com", adminReader.GetString("Email"));
-        Assert.AreEqual(4, adminReader.GetInt32("Role")); // SuperAdmin role
+        Assert.AreEqual("admin@coderocket.com", adminReader.GetString(0));
+        Assert.AreEqual(4, adminReader.GetInt32(1)); // SuperAdmin role
 
         Console.WriteLine($"✅ Test 9: Inserted {userCount} test users, including administrator");
     }
@@ -154,7 +154,7 @@ public class DbToolsAdvancedIntegrationTests
     public async Task Test11_InvalidConnectionString_ShouldHandleGracefully()
     {
         // Arrange
-        var invalidConnectionString = "Server=invalid_host;Port=3306;Database=test;User=root;Password=wrong;";
+        var invalidConnectionString = "Host=invalid_host;Port=5432;Database=test;Username=postgres;Password=wrong;";
         var invalidDatabaseService = new DatabaseService(invalidConnectionString);
 
         // Act & Assert
@@ -172,62 +172,58 @@ public class DbToolsAdvancedIntegrationTests
         await _migrationService!.SetupDatabaseAsync();
 
         // Assert - check indexes
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
 
         var indexesCommand = connection.CreateCommand();
         indexesCommand.CommandText = @"
-            SELECT INDEX_NAME, COLUMN_NAME
-            FROM INFORMATION_SCHEMA.STATISTICS 
-            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'
-            AND INDEX_NAME != 'PRIMARY'
-            ORDER BY INDEX_NAME, SEQ_IN_INDEX";
+            SELECT indexname, indexdef
+            FROM pg_indexes 
+            WHERE tablename = 'users' AND indexname NOT LIKE 'users_pkey%'
+            ORDER BY indexname";
 
-        var indexes = new List<(string IndexName, string ColumnName)>();
+        var indexes = new List<string>();
         using var reader = await indexesCommand.ExecuteReaderAsync();
         while (await reader.ReadAsync())
         {
-            indexes.Add((
-                reader.GetString("INDEX_NAME"),
-                reader.GetString("COLUMN_NAME")
-            ));
+            indexes.Add(reader.GetString(0));
         }
 
         // Check presence of key indexes
-        Assert.IsTrue(indexes.Any(i => i.IndexName.Contains("email")), "There should be an index on Email");
-        Assert.IsTrue(indexes.Any(i => i.IndexName.Contains("telegram")), "There should be an index on TelegramId");
-        Assert.IsTrue(indexes.Any(i => i.IndexName.Contains("role")), "There should be an index on Role");
+        Assert.IsTrue(indexes.Any(i => i.Contains("email")), "There should be an index on email");
+        Assert.IsTrue(indexes.Any(i => i.Contains("telegram")), "There should be an index on telegram_id");
+        Assert.IsTrue(indexes.Any(i => i.Contains("role")), "There should be an index on role");
 
         Console.WriteLine($"✅ Test 12: Created {indexes.Count} indexes for query optimization");
     }
 
     [TestMethod]
-    [TestCategory("Charset")]
-    public async Task Test13_CheckDatabaseCharset_ShouldUseUtf8mb4()
+    [TestCategory("Encoding")]
+    public async Task Test13_CheckDatabaseEncoding_ShouldUseUTF8()
     {
         // Arrange & Act
         await _migrationService!.SetupDatabaseAsync();
 
-        // Assert - check database charset
-        using var connection = new MySqlConnection(_connectionString);
+        // Assert - check database encoding in PostgreSQL
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
 
-        var charsetCommand = connection.CreateCommand();
-        charsetCommand.CommandText = @"
-            SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME
-            FROM INFORMATION_SCHEMA.SCHEMATA 
-            WHERE SCHEMA_NAME = DATABASE()";
+        var encodingCommand = connection.CreateCommand();
+        encodingCommand.CommandText = @"
+            SELECT datname, pg_encoding_to_char(encoding) as encoding
+            FROM pg_database 
+            WHERE datname = current_database()";
 
-        using var reader = await charsetCommand.ExecuteReaderAsync();
-        Assert.IsTrue(await reader.ReadAsync(), "Charset information should be retrieved");
+        using var reader = await encodingCommand.ExecuteReaderAsync();
+        Assert.IsTrue(await reader.ReadAsync(), "Encoding information should be retrieved");
 
-        var charset = reader.GetString("DEFAULT_CHARACTER_SET_NAME");
-        var collation = reader.GetString("DEFAULT_COLLATION_NAME");
+        var dbName = reader.GetString(0);
+        var encoding = reader.GetString(1);
 
-        Assert.AreEqual("utf8mb4", charset, "Database should use UTF8MB4");
-        Assert.IsTrue(collation.StartsWith("utf8mb4"), "Collation should be UTF8MB4");
+        // PostgreSQL uses UTF8 by default for new databases
+        Assert.AreEqual("UTF8", encoding, "Database should use UTF8 encoding");
 
-        Console.WriteLine($"✅ Test 13: Database uses charset {charset} with collation {collation}");
+        Console.WriteLine($"✅ Test 13: Database '{dbName}' uses encoding {encoding}");
     }
 
     [TestMethod]

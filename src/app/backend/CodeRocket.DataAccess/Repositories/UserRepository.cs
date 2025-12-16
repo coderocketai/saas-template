@@ -55,8 +55,8 @@ public class UserRepository : IUserRepository
     {
         using var connection = await _connectionFactory.CreateOpenConnectionAsync();
         
-        var sortBy = string.IsNullOrWhiteSpace(request.SortBy) ? "Id" : request.SortBy;
-        var sortDirection = request.SortDescending ? "DESC" : "ASC";
+        var sortBy = string.IsNullOrWhiteSpace(request.SortBy) ? PgSqlHelper.IdColumnName : request.SortBy;
+        var sortDirection = request.SortDescending ? PgSqlHelper.SortingDirectionDesc : PgSqlHelper.SortingDirectionAsc;
         var offset = (request.Page - 1) * request.PageSize;
 
         var query = string.Format(UserQueries.GetAll, sortBy, sortDirection);
@@ -82,8 +82,8 @@ public class UserRepository : IUserRepository
     {
         using var connection = await _connectionFactory.CreateOpenConnectionAsync();
         
-        var sortBy = string.IsNullOrWhiteSpace(request.SortBy) ? "Id" : request.SortBy;
-        var sortDirection = request.SortDescending ? "DESC" : "ASC";
+        var sortBy = string.IsNullOrWhiteSpace(request.SortBy) ? PgSqlHelper.IdColumnName : request.SortBy;
+        var sortDirection = request.SortDescending ? PgSqlHelper.SortingDirectionDesc : PgSqlHelper.SortingDirectionAsc;
         var offset = (request.Page - 1) * request.PageSize;
 
         var query = string.Format(UserQueries.GetByRole, sortBy, sortDirection);

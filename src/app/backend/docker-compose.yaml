@@ -1,25 +1,23 @@
 ﻿version: "3.9"
 services:
-  mariadb:
-    image: mariadb:11.8.3
-    container_name: coderocket_mariadb
+  postgres:
+    image: postgres:18.1
+    container_name: coderocket_postgres
     environment:
       # Change these passwords for your environment or use Docker secrets for production
-      MYSQL_ROOT_PASSWORD: "%E!3UqqdjT23WW"
-      MYSQL_DATABASE: coderocket
-      MYSQL_USER: coderocket_user
-      MYSQL_PASSWORD: coderocket_pass
-      # Ensure UTF-8 encoding
-      MYSQL_CHARSET: utf8mb4
-      MYSQL_COLLATION: utf8mb4_unicode_ci
+      POSTGRES_PASSWORD: "%E!3UqqdjT23WW"
+      POSTGRES_DB: coderocket
+      POSTGRES_USER: coderocket_user
     ports:
-      - "3306:3306"
+      - "5432:5432"
     volumes:
-      # Persist database files outside container in a named volume
-      - mariadb_data:/var/lib/mysql
+      # Persist database files outside container in a named volume.
+      # IMPORTANT: The suggested container configuration for PostgreSQL 18+ is to place a single mount at '/var/lib/postgresql' 
+      # https://github.com/docker-library/postgres/issues/37
+      - postgres_data:/var/lib/postgresql
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      test: ["CMD-SHELL", "pg_isready -U coderocket_user -d coderocket"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -35,9 +33,9 @@ services:
       dockerfile: CodeRocket.DbTools/Dockerfile
     environment:
       # Connection string for migrations
-      ConnectionStrings__DefaultConnection: "Server=mariadb;Port=3306;Database=coderocket;User=coderocket_user;Password=coderocket_pass;AllowUserVariables=True;UseAffectedRows=False"
+      ConnectionStrings__DefaultConnection: "Host=postgres;Port=5432;Database=coderocket;Username=coderocket_user;Password=%E!3UqqdjT23WW"
     depends_on:
-      mariadb:
+      postgres:
         condition: service_healthy
     command: ["setup-db-latest"]
     restart: "no"  # Runs once and stops
@@ -55,13 +53,13 @@ services:
       - "8001:8081"
     environment:
       ASPNETCORE_ENVIRONMENT: Development
-      # Connection string pointing to the mariadb service
-      ConnectionStrings__DbConnection: "Server=mariadb;Port=3306;Database=coderocket;User=coderocket_user;Password=coderocket_pass;AllowUserVariables=True;UseAffectedRows=False"
+      # Connection string pointing to the postgres service
+      ConnectionStrings__DbConnection: "Host=postgres;Port=5432;Database=coderocket;Username=coderocket_user;Password=%E!3UqqdjT23WW"
       # Logging configuration
       Logging__LogLevel__Default: Information
       Logging__LogLevel__Microsoft.AspNetCore: Warning
     depends_on:
-      mariadb:
+      postgres:
         condition: service_healthy
       coderocket.db-migrator:
         condition: service_completed_successfully
@@ -76,7 +74,7 @@ services:
       - coderocket_network
 
 volumes:
-  mariadb_data:
+  postgres_data:
     driver: local
 
 networks:

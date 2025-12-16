@@ -1,16 +1,16 @@
 ﻿using CodeRocket.DbTools.IntegrationTests.Infrastructure;
 using CodeRocket.DbTools.Services;
-using MySqlConnector;
+using Npgsql;
 
 namespace CodeRocket.DbTools.IntegrationTests;
 
 /// <summary>
-/// Integration tests for DbTools using MariaDB in Docker container
+/// Integration tests for DbTools using PostgreSQL in Docker container
 /// </summary>
 [TestClass]
 public class DbToolsBasicTests
 {
-    private DockerMariaDbContainer? _mariaDbContainer;
+    private DockerPostgresContainer? _postgresContainer;
     private DatabaseService? _databaseService;
     private MigrationService? _migrationService;
     private string? _connectionString;
@@ -18,11 +18,11 @@ public class DbToolsBasicTests
     [TestInitialize]
     public async Task TestInitialize()
     {
-        // Start MariaDB container for each test
-        _mariaDbContainer = new DockerMariaDbContainer();
-        await _mariaDbContainer.StartAsync();
+        // Start PostgreSQL container for each test
+        _postgresContainer = new DockerPostgresContainer();
+        await _postgresContainer.StartAsync();
         
-        _connectionString = _mariaDbContainer.ConnectionString;
+        _connectionString = _postgresContainer.ConnectionString;
         _databaseService = new DatabaseService(_connectionString);
         
         // Create MigrationService with path to migrations from the main project
@@ -39,11 +39,11 @@ public class DbToolsBasicTests
     public async Task TestCleanup()
     {
         // Stop and remove container after each test
-        if (_mariaDbContainer != null)
+        if (_postgresContainer != null)
         {
             try
             {
-                await _mariaDbContainer.StopAsync();
+                await _postgresContainer.StopAsync();
             }
             catch (Exception ex)
             {
@@ -51,8 +51,8 @@ public class DbToolsBasicTests
             }
             finally
             {
-                _mariaDbContainer.Dispose();
-                _mariaDbContainer = null;
+                _postgresContainer.Dispose();
+                _postgresContainer = null;
             }
         }
     }
@@ -72,11 +72,11 @@ public class DbToolsBasicTests
         Assert.IsTrue(dbExists, "Database should be created");
         
         // Verify that the db_versions table is created
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'db_versions'";
+        command.CommandText = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'db_versions'";
         var tableCount = Convert.ToInt32(await command.ExecuteScalarAsync());
         
         Assert.AreEqual(1, tableCount, "The db_versions table should be created");
@@ -240,11 +240,11 @@ public class DbToolsBasicTests
         var dbExists = await _databaseService.EnsureDatabaseExistsAsync();
         Assert.IsTrue(dbExists, "Database should be created");
         
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
         
         var command = connection.CreateCommand();
-        command.CommandText = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'";
+        command.CommandText = "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'";
         var tableCount = Convert.ToInt32(await command.ExecuteScalarAsync());
         
         Assert.AreEqual(1, tableCount, "Users table should be created");
