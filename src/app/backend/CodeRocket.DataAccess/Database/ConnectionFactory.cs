@@ -1,11 +1,11 @@
 using System.Data;
-using MySqlConnector;
+using Npgsql;
 using Microsoft.Extensions.Configuration;
 
 namespace CodeRocket.DataAccess.Database;
 
 /// <summary>
-/// Database connection factory for MariaDB
+/// Database connection factory for PostgreSQL
 /// </summary>
 public class ConnectionFactory
 {
@@ -28,7 +28,7 @@ public class ConnectionFactory
     /// <returns>Database connection instance</returns>
     public IDbConnection CreateConnection()
     {
-        return new MySqlConnection(_connectionString);
+        return new NpgsqlConnection(_connectionString);
     }
 
     /// <summary>
@@ -38,7 +38,7 @@ public class ConnectionFactory
     public async Task<IDbConnection> CreateOpenConnectionAsync()
     {
         var connection = CreateConnection();
-        await ((MySqlConnection)connection).OpenAsync();
+        await ((NpgsqlConnection)connection).OpenAsync();
         return connection;
     }
 }

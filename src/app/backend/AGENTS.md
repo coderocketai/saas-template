@@ -12,9 +12,9 @@
 - **C# 12** - Latest language features and performance improvements
 
 ### Database & Data Access
-- **MariaDB 11.8 LTS** - Primary database server
+- **PostgreSQL 18.1** - Primary database server
 - **Dapper** - Lightweight ORM for high-performance data access
-- **MySQL Connector/NET** - Database connectivity
+- **Npgsql** - PostgreSQL database connectivity
 
 ### Infrastructure & DevOps
 - **Docker & Docker Compose** - Containerization and orchestration
@@ -80,13 +80,13 @@ Database management tools and utilities.
 
 ## Database Schema
 
-The application uses **MariaDB 11.8 LTS** as the primary database with the following key characteristics:
+The application uses **PostgreSQL 18.1** as the primary database with the following key characteristics:
 
-- **UTF8MB4** character set for full Unicode support
-- **Soft delete pattern** for data integrity
-- **Audit trails** with CreatedAt/UpdatedAt timestamps
+- **UTF-8** encoding by default for full Unicode support
+- **Soft delete pattern** for data integrity (using boolean `is_deleted` column)
+- **Audit trails** with `created_at`/`updated_at` timestamps (snake_case naming)
 - **Indexed foreign keys** for optimal query performance
-- **Connection pooling** for scalability
+- **Connection pooling** for scalability via Npgsql
 
 > **Note**: Detailed schema documentation is available in [CodeRocket.DataAccess/AGENTS.md](CodeRocket.DataAccess/AGENTS.md)
 
@@ -118,16 +118,16 @@ The application uses **MariaDB 11.8 LTS** as the primary database with the follo
 After successful startup, the following services will be available:
 
 - **API Server**: http://localhost:8000 (HTTP) / https://localhost:8001 (HTTPS)
-- **MariaDB**: localhost:3306 (accessible only from localhost for security)
+- **PostgreSQL**: localhost:5432 (accessible only from localhost for security)
 - **Health Check**: http://localhost:8000/health
 
 ### Database Connection
 
-The application connects to MariaDB using these default development credentials:
-- **Host**: mariadb (internal Docker network)
+The application connects to PostgreSQL using these default development credentials:
+- **Host**: postgres (internal Docker network)
 - **Database**: coderocket
-- **User**: coderocket_user
-- **Password**: coderocket_pass
+- **Username**: coderocket_user
+- **Password**: %E!3UqqdjT23WW
 
 > **⚠️ Security Note**: Change default passwords before production deployment. Use Docker secrets or environment-specific configuration for production.
 
@@ -138,7 +138,7 @@ The application connects to MariaDB using these default development credentials:
 docker compose logs -f coderocket.api
 
 # View database logs
-docker compose logs -f mariadb
+docker compose logs -f postgres
 
 # Stop all services
 docker compose down
@@ -149,20 +149,20 @@ docker compose down -v
 # Rebuild API container
 docker compose build coderocket.api
 
-# Connect to MariaDB CLI
-docker compose exec mariadb mysql -u coderocket_user -p coderocket
+# Connect to PostgreSQL CLI
+docker compose exec postgres psql -U coderocket_user -d coderocket
 ```
 
 ### Data Persistence
 
-Database data is stored in a Docker volume named `mariadb_data` which persists between container restarts:
+Database data is stored in a Docker volume named `postgres_data` which persists between container restarts:
 
 ```bash
 # List volumes
 docker volume ls
 
 # Inspect volume location
-docker volume inspect backend_mariadb_data
+docker volume inspect backend_postgres_data
 ```
 
 ## Development Workflow
@@ -177,7 +177,7 @@ docker volume inspect backend_mariadb_data
 
 2. **Start infrastructure (database only):**
    ```bash
-   docker compose up -d mariadb
+   docker compose up -d postgres
    ```
 
 3. **Run API locally** using your IDE (Rider/Visual Studio) or CLI:
@@ -213,7 +213,7 @@ Key configuration options via environment variables:
 
 ```bash
 # Database connection
-ConnectionStrings__DbConnection="Server=localhost;Database=coderocket;..."
+ConnectionStrings__DbConnection="Host=localhost;Port=5432;Database=coderocket;Username=user;Password=pass"
 
 # ASP.NET Core environment
 ASPNETCORE_ENVIRONMENT=Development|Staging|Production
@@ -255,14 +255,14 @@ dotnet test --collect:"XPlat Code Coverage"
 
 **Port Conflicts:**
 ```bash
-# Check if ports 8000/8001/3306 are in use
+# Check if ports 8000/8001/5432 are in use
 netstat -tulpn | grep :8000
 ```
 
 **Database Connection Issues:**
 ```bash
-# Verify MariaDB is running and accessible
-docker compose exec mariadb mysqladmin ping
+# Verify PostgreSQL is running and accessible
+docker compose exec postgres pg_isready -U coderocket_user -d coderocket
 ```
 
 **Container Build Failures:**

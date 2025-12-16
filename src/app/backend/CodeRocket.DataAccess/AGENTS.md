@@ -13,7 +13,7 @@ This policy ensures consistency, improves code maintainability, and facilitates 
 
 ## Library Goals and Purpose
 
-**CodeRocket.DataAccess** is the data access layer of the project that provides unified access to the MariaDB database using Dapper ORM. This layer implements the Repository pattern and handles all database operations with strong typing and async/await patterns.
+**CodeRocket.DataAccess** is the data access layer of the project that provides unified access to the PostgreSQL database using Dapper ORM. This layer implements the Repository pattern and handles all database operations with strong typing and async/await patterns.
 
 ### Main Goals:
 - **Database Abstraction** - providing clean abstraction over database operations
@@ -26,8 +26,8 @@ This policy ensures consistency, improves code maintainability, and facilitates 
 
 ```
 CodeRocket.DataAccess/
-├── Database/                    # Database infrastructure
-│   ├── ConnectionFactory.cs    # MariaDB connection factory
+├── Database/                   # Database infrastructure
+│   ├── ConnectionFactory.cs    # PostgreSQL connection factory
 │   ├── create_users_table.sql  # Database schema scripts
 │   └── SqlQueries/             # SQL query constants
 │       └── UserQueries.cs      # User-related SQL queries
@@ -44,8 +44,8 @@ CodeRocket.DataAccess/
 ### 1. Database Infrastructure
 
 #### ConnectionFactory.cs
-Factory class for managing MariaDB database connections:
-- Creates and manages `MySqlConnection` instances
+Factory class for managing PostgreSQL database connections:
+- Creates and manages `NpgsqlConnection` instances
 - Handles connection string configuration from `appsettings.json`
 - Provides both synchronous and asynchronous connection creation
 - Ensures proper connection lifecycle management
@@ -87,12 +87,12 @@ Specialized repository interface for User entity operations:
 ### 3. Repository Implementations
 
 #### UserRepository
-Concrete implementation of `IUserRepository` using Dapper and MariaDB:
+Concrete implementation of `IUserRepository` using Dapper and PostgreSQL:
 - **Async Operations** - all methods use async/await patterns
 - **Connection Management** - proper using statements with ConnectionFactory
 - **Parameter Safety** - all queries use Dapper parameters to prevent SQL injection
-- **Soft Delete Support** - implements soft delete pattern with IsDeleted flag
-- **Pagination** - supports MySQL LIMIT/OFFSET pagination
+- **Soft Delete Support** - implements soft delete pattern with is_deleted flag
+- **Pagination** - supports PostgreSQL LIMIT/OFFSET pagination
 - **Sorting** - dynamic sorting with configurable columns and directions
 
 **Key Features:**
@@ -121,20 +121,35 @@ Extension method for configuring DataAccess layer services:
 ### Users Table Structure
 ```sql
 CREATE TABLE users (
-    Id INT AUTO_INCREMENT PRIMARY KEY,
-    Role INT NOT NULL DEFAULT 0,
-    Email VARCHAR(255) NULL UNIQUE,
-    TelegramId VARCHAR(50) NULL UNIQUE,
-    DiscordId VARCHAR(50) NULL UNIQUE,
-    FirstName VARCHAR(100) NULL,
-    LastName VARCHAR(100) NULL,
-    DisplayName VARCHAR(100) NULL,
-    CreatedBy VARCHAR(100) NULL,
-    UpdatedBy VARCHAR(100) NULL,
-    CreatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UpdatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    IsDeleted BOOLEAN NOT NULL DEFAULT FALSE
+    id SERIAL PRIMARY KEY,
+    role INT NOT NULL DEFAULT 0,
+    email VARCHAR(255) NULL UNIQUE,
+    telegram_id VARCHAR(50) NULL UNIQUE,
+    discord_id VARCHAR(50) NULL UNIQUE,
+    first_name VARCHAR(100) NULL,
+    last_name VARCHAR(100) NULL,
+    display_name VARCHAR(100) NULL,
+    created_by VARCHAR(100) NULL,
+    updated_by VARCHAR(100) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_deleted BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+-- Create trigger to automatically update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS update_users_updated_at ON users;
+CREATE TRIGGER update_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 ```
 
 **Indexes for Performance:**
@@ -177,7 +192,7 @@ public async Task<PaginationResponse<User>> GetUsersPagedAsync(int page, int pag
     {
         Page = page,
         PageSize = pageSize,
-        SortBy = "CreatedAt",
+        SortBy = "created_at",
         SortDescending = true
     };
     
@@ -234,10 +249,10 @@ Store all SQL queries as constants in dedicated query classes:
 public static class UserQueries
 {
     public const string GetById = @"
-        SELECT Id, Role, Email, TelegramId, DiscordId, FirstName, LastName, DisplayName, 
-               CreatedBy, UpdatedBy, CreatedAt, UpdatedAt, IsDeleted
+        SELECT id, role, email, telegram_id, discord_id, first_name, last_name, display_name, 
+               created_by, updated_by, created_at, updated_at, is_deleted
         FROM users 
-        WHERE Id = @Id AND IsDeleted = 0";
+        WHERE id = @Id AND is_deleted = false";
 }
 ```
 
@@ -311,11 +326,11 @@ public async Task<bool> DeleteAsync(int id)
 ## Configuration
 
 ### Connection String Setup
-Configure MariaDB connection in `appsettings.json`:
+Configure PostgreSQL connection in `appsettings.json`:
 ```json
 {
   "ConnectionStrings": {
-    "MainConnection": "Server=localhost;Database=coderocket;User=root;Password=password;Allow User Variables=true;"
+    "DbConnection": "Host=localhost;Port=5432;Database=coderocket;Username=postgres;Password=password;"
   }
 }
 ```
@@ -394,9 +409,9 @@ Ensure proper indexes for frequently queried columns:
 - Use `QueryAsync` for multiple entity retrieval
 
 ### 3. Connection Pooling
-MariaDB connector automatically handles connection pooling. Configure pool settings in connection string if needed:
+Npgsql automatically handles connection pooling. Configure pool settings in connection string if needed:
 ```
-Server=localhost;Database=coderocket;User=root;Password=password;Maximum Pool Size=100;Minimum Pool Size=5;
+Host=localhost;Port=5432;Database=coderocket;Username=postgres;Password=password;Maximum Pool Size=100;Minimum Pool Size=5;
 ```
 
 ## Conclusion

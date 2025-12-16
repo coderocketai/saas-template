@@ -1,86 +1,86 @@
 namespace CodeRocket.DataAccess.Database.SqlQueries;
 
 /// <summary>
-/// SQL queries for User entity operations
+/// SQL queries for User entity operations (PostgreSQL)
 /// </summary>
 public static class UserQueries
 {
     public const string GetById = @"
-        SELECT Id, Role, Email, TelegramId, DiscordId, FirstName, LastName, DisplayName, 
-               CreatedBy, UpdatedBy, CreatedAt, UpdatedAt, IsDeleted
+        SELECT id, role, email, telegram_id, discord_id, first_name, last_name, display_name, 
+               created_by, updated_by, created_at, updated_at, is_deleted
         FROM users 
-        WHERE Id = @Id AND IsDeleted = 0";
+        WHERE id = @Id AND is_deleted = false";
 
     public const string GetByEmail = @"
-        SELECT Id, Role, Email, TelegramId, DiscordId, FirstName, LastName, DisplayName, 
-               CreatedBy, UpdatedBy, CreatedAt, UpdatedAt, IsDeleted
+        SELECT id, role, email, telegram_id, discord_id, first_name, last_name, display_name, 
+               created_by, updated_by, created_at, updated_at, is_deleted
         FROM users 
-        WHERE Email = @Email AND IsDeleted = 0";
+        WHERE email = @Email AND is_deleted = false";
 
     public const string GetByTelegramId = @"
-        SELECT Id, Role, Email, TelegramId, DiscordId, FirstName, LastName, DisplayName, 
-               CreatedBy, UpdatedBy, CreatedAt, UpdatedAt, IsDeleted
+        SELECT id, role, email, telegram_id, discord_id, first_name, last_name, display_name, 
+               created_by, updated_by, created_at, updated_at, is_deleted
         FROM users 
-        WHERE TelegramId = @TelegramId AND IsDeleted = 0";
+        WHERE telegram_id = @TelegramId AND is_deleted = false";
 
     public const string GetByDiscordId = @"
-        SELECT Id, Role, Email, TelegramId, DiscordId, FirstName, LastName, DisplayName, 
-               CreatedBy, UpdatedBy, CreatedAt, UpdatedAt, IsDeleted
+        SELECT id, role, email, telegram_id, discord_id, first_name, last_name, display_name, 
+               created_by, updated_by, created_at, updated_at, is_deleted
         FROM users 
-        WHERE DiscordId = @DiscordId AND IsDeleted = 0";
+        WHERE discord_id = @DiscordId AND is_deleted = false";
 
     public const string GetAll = @"
-        SELECT Id, Role, Email, TelegramId, DiscordId, FirstName, LastName, DisplayName, 
-               CreatedBy, UpdatedBy, CreatedAt, UpdatedAt, IsDeleted
+        SELECT id, role, email, telegram_id, discord_id, first_name, last_name, display_name, 
+               created_by, updated_by, created_at, updated_at, is_deleted
         FROM users 
-        WHERE IsDeleted = 0
+        WHERE is_deleted = false
         ORDER BY {0} {1}
-        LIMIT @Offset, @PageSize";
+        LIMIT @PageSize OFFSET @Offset";
 
     public const string GetByRole = @"
-        SELECT Id, Role, Email, TelegramId, DiscordId, FirstName, LastName, DisplayName, 
-               CreatedBy, UpdatedBy, CreatedAt, UpdatedAt, IsDeleted
+        SELECT id, role, email, telegram_id, discord_id, first_name, last_name, display_name, 
+               created_by, updated_by, created_at, updated_at, is_deleted
         FROM users 
-        WHERE Role = @Role AND IsDeleted = 0
+        WHERE role = @Role AND is_deleted = false
         ORDER BY {0} {1}
-        LIMIT @Offset, @PageSize";
+        LIMIT @PageSize OFFSET @Offset";
 
     public const string GetTotalCount = @"
         SELECT COUNT(*) 
         FROM users 
-        WHERE IsDeleted = 0";
+        WHERE is_deleted = false";
 
     public const string GetTotalCountByRole = @"
         SELECT COUNT(*) 
         FROM users 
-        WHERE Role = @Role AND IsDeleted = 0";
+        WHERE role = @Role AND is_deleted = false";
 
     public const string Create = @"
-        INSERT INTO users (Role, Email, TelegramId, DiscordId, FirstName, LastName, DisplayName, 
-                          CreatedBy, UpdatedBy, CreatedAt, UpdatedAt, IsDeleted)
+        INSERT INTO users (role, email, telegram_id, discord_id, first_name, last_name, display_name, 
+                          created_by, updated_by, created_at, updated_at, is_deleted)
         VALUES (@Role, @Email, @TelegramId, @DiscordId, @FirstName, @LastName, @DisplayName, 
-                @CreatedBy, @UpdatedBy, @CreatedAt, @UpdatedAt, @IsDeleted);
-        SELECT LAST_INSERT_ID();";
+                @CreatedBy, @UpdatedBy, @CreatedAt, @UpdatedAt, @IsDeleted)
+        RETURNING id;";
 
     public const string Update = @"
         UPDATE users 
-        SET Role = @Role, Email = @Email, TelegramId = @TelegramId, DiscordId = @DiscordId, 
-            FirstName = @FirstName, LastName = @LastName, DisplayName = @DisplayName,
-            UpdatedBy = @UpdatedBy, UpdatedAt = @UpdatedAt
-        WHERE Id = @Id AND IsDeleted = 0";
+        SET role = @Role, email = @Email, telegram_id = @TelegramId, discord_id = @DiscordId, 
+            first_name = @FirstName, last_name = @LastName, display_name = @DisplayName,
+            updated_by = @UpdatedBy, updated_at = @UpdatedAt
+        WHERE id = @Id AND is_deleted = false";
 
     public const string SoftDelete = @"
         UPDATE users 
-        SET IsDeleted = 1, UpdatedAt = @UpdatedAt, UpdatedBy = @UpdatedBy
-        WHERE Id = @Id";
+        SET is_deleted = true, updated_at = @UpdatedAt, updated_by = @UpdatedBy
+        WHERE id = @Id";
 
     public const string Exists = @"
         SELECT COUNT(*) 
         FROM users 
-        WHERE Id = @Id AND IsDeleted = 0";
+        WHERE id = @Id AND is_deleted = false";
 
     public const string IsEmailTaken = @"
         SELECT COUNT(*) 
         FROM users 
-        WHERE Email = @Email AND IsDeleted = 0 AND (@ExcludeUserId IS NULL OR Id != @ExcludeUserId)";
+        WHERE email = @Email AND is_deleted = false AND (@ExcludeUserId IS NULL OR id != @ExcludeUserId)";
 }

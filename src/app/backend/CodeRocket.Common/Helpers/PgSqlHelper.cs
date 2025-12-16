@@ -2,6 +2,13 @@ namespace CodeRocket.Common.Helpers;
 
 public static class PgSqlHelper
 {
+    public const string IdColumnName = "id"; 
+    public const string CreatedAtColumnName = "created_at";
+    public const string UpdatedAtColumnName = "updated_at";
+
+    public const string SortingDirectionAsc = "ASC";
+    public const string SortingDirectionDesc = "DESC";
+    
     /// <summary>
     /// Parse SQL statements handling PostgreSQL-specific syntax like functions and triggers
     /// </summary>
